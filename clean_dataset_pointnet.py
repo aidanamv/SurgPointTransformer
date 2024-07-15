@@ -2,19 +2,36 @@ import os
 import numpy as np
 import open3d as o3d
 
+def update_labels(cropped_pcd, filtered_data, label):
+    cropped_points = np.asarray(cropped_pcd.points)
+
+    # Get indices for x, y, z coordinates in filtered_data
+    ind_x = np.where(np.isin(filtered_data[:, 0], cropped_points[:, 0]))[0]
+    ind_y = np.where(np.isin(filtered_data[:, 1], cropped_points[:, 1]))[0]
+    ind_z = np.where(np.isin(filtered_data[:, 2], cropped_points[:, 2]))[0]
+
+    # Find common indices using set intersection
+    common_xy = np.intersect1d(ind_x, ind_y)
+    common_xyz = np.intersect1d(common_xy, ind_z)
+
+    # Set values in filtered_data at common indices
+    filtered_data[common_xyz, 6] = label
+    return filtered_data
 
 dir = "/Volumes/SpineDepth/PointNet_data/1"
 stls_dir = "/Volumes/SpineDepth/PoinTr_dataset/stls_transformed"
 files = os.listdir(dir)
 
-save_dir = "/Volumes/SpineDepth/PoinTr_dataset"
+save_dir = "/Volumes/SpineDepth/PointNet_data/1_updated"
+
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
 
 for file in files:
     if "._" in file:
         continue
     print(file)
     _, specimen,_, recording,_, cam,_, frame = file[:-4].split("_")
-
     data = np.load(os.path.join(dir, file))["arr_0"]
     mean = np.mean(data, axis=0)
     std_dev = np.std(data, axis=0)
@@ -111,38 +128,60 @@ for file in files:
     cropped_L3_pcd = L3_pcd.crop(bbox3)
     cropped_L4_pcd = L4_pcd.crop(bbox4)
     cropped_L5_pcd = L5_pcd.crop(bbox5)
+
+
+
     threshold = 5000
     if np.asarray(cropped_L1_pcd.points).shape[0] > threshold and np.asarray(cropped_L2_pcd.points).shape[0] > threshold and np.asarray(cropped_L3_pcd.points).shape[0] > threshold and np.asarray(cropped_L4_pcd.points).shape[0] > threshold and np.asarray(cropped_L5_pcd.points).shape[0] > threshold:
 
-        if not os.path.exists(os.path.join( save_dir,"complete")):
-            os.makedirs(os.path.join(save_dir, "complete"))
-        if np.asarray(cropped_L1_pcd.points).shape[0] > 0 and np.asarray(cropped_L2_pcd.points).shape[0] > 0 and np.asarray(cropped_L3_pcd.points).shape[0] > 0 and np.asarray(cropped_L4_pcd.points).shape[0] > 0 and np.asarray(cropped_L5_pcd.points).shape[0] > 0:
-            L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
-            o3d.io.write_point_cloud(os.path.join(save_dir,"complete", file[:-4] + "_L1.pcd"), L1_stl_dwp)
-            if not os.path.exists(os.path.join(save_dir,"partial", file[:-4] + "_L1")):
-                os.makedirs(os.path.join(save_dir,"partial", file[:-4] + "_L1"))
-            o3d.io.write_point_cloud(os.path.join(save_dir,"partial", file[:-4] + "_L1", "00.pcd"), cropped_L1_pcd)
+        filtered_data[:, 6] = 0.0
 
-            L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
-            o3d.io.write_point_cloud(os.path.join(save_dir,"complete", file[:-4] + "_L2.pcd"), L2_stl_dwp)
-            if not os.path.exists(os.path.join(save_dir,"partial", file[:-4] + "_L2")):
-                os.makedirs(os.path.join(save_dir,"partial", file[:-4] + "_L2"))
-            o3d.io.write_point_cloud(os.path.join(save_dir,"partial", file[:-4] + "_L2", "00.pcd"), cropped_L2_pcd)
+        filtered_data = update_labels(cropped_L1_pcd, filtered_data,1)
+        filtered_data = update_labels(cropped_L2_pcd, filtered_data,2)
+        filtered_data = update_labels(cropped_L3_pcd, filtered_data,3)
+        filtered_data = update_labels(cropped_L4_pcd, filtered_data,4)
+        filtered_data = update_labels(cropped_L5_pcd, filtered_data,5)
 
-            L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
-            o3d.io.write_point_cloud(os.path.join(save_dir, "complete", file[:-4] + "_L3.pcd"), L3_stl_dwp)
-            if not os.path.exists(os.path.join(save_dir,"partial", file[:-4] + "_L3")):
-                os.makedirs(os.path.join(save_dir,"partial", file[:-4] + "_L3"))
-            o3d.io.write_point_cloud(os.path.join(save_dir,"partial", file[:-4] + "_L3", "00.pcd"), cropped_L3_pcd)
+        np.savez(os.path.join(save_dir, file), filtered_data)
 
-            L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
-            o3d.io.write_point_cloud(os.path.join(save_dir,"complete", file[:-4] + "_L4.pcd"), L4_stl_dwp)
-            if not os.path.exists(os.path.join(save_dir,"partial", file[:-4] + "_L4")):
-                os.makedirs(os.path.join(save_dir,"partial", file[:-4] + "_L4"))
-            o3d.io.write_point_cloud(os.path.join(save_dir,"partial", file[:-4] + "_L4", "00.pcd"), cropped_L4_pcd)
 
-            L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
-            o3d.io.write_point_cloud(os.path.join(save_dir,"complete", file[:-4] + "_L5.pcd"), L5_stl_dwp)
-            if not os.path.exists(os.path.join(save_dir,"partial", file[:-4] + "_L5")):
-                os.makedirs(os.path.join(save_dir,"partial", file[:-4] + "_L5"))
-            o3d.io.write_point_cloud(os.path.join(save_dir,"partial", file[:-4] + "_L5", "00.pcd"), cropped_L5_pcd)
+
+
+            # L1_ind = np.where(filtered_data[:, 6] == 1.00)
+            # L2_ind = np.where(filtered_data[:, 6] == 2.00)
+            # L3_ind = np.where(filtered_data[:, 6] == 3.00)
+            # L4_ind = np.where(filtered_data[:, 6] == 4.00)
+            # L5_ind = np.where(filtered_data[:, 6] == 5.00)
+            # background_ind = np.where(filtered_data[:,6] == 0.0)
+            #
+            # L1_pcd = o3d.geometry.PointCloud()
+            # L2_pcd = o3d.geometry.PointCloud()
+            # L3_pcd = o3d.geometry.PointCloud()
+            # L4_pcd = o3d.geometry.PointCloud()
+            # L5_pcd = o3d.geometry.PointCloud()
+            # background_pcd = o3d.geometry.PointCloud()
+            #
+            #
+            # L1_pcd.points = o3d.utility.Vector3dVector(filtered_data[L1_ind[0], 0:3])
+            # L2_pcd.points = o3d.utility.Vector3dVector(filtered_data[L2_ind[0], 0:3])
+            # L3_pcd.points = o3d.utility.Vector3dVector(filtered_data[L3_ind[0], 0:3])
+            # L4_pcd.points = o3d.utility.Vector3dVector(filtered_data[L4_ind[0], 0:3])
+            # L5_pcd.points = o3d.utility.Vector3dVector(filtered_data[L5_ind[0], 0:3])
+            # background_pcd.points = o3d.utility.Vector3dVector(filtered_data[background_ind[0], 0:3])
+            #
+            # L1_pcd.paint_uniform_color((1, 0, 0))
+            # L2_pcd.paint_uniform_color((0, 1, 0))
+            # L3_pcd.paint_uniform_color((0, 0, 1))
+            # L4_pcd.paint_uniform_color((1, 1, 0))
+            # L5_pcd.paint_uniform_color((1, 0, 1))
+            # background_pcd.paint_uniform_color((0, 0, 0))
+            #
+            # o3d.visualization.draw_geometries([
+            #     L1_stl, L2_stl, L3_stl, L4_stl, L5_stl,
+            #     L1_pcd, L2_pcd, L3_pcd, L4_pcd, L5_pcd, background_pcd
+            # ])
+            #
+            #
+            #
+            #
+            #

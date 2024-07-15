@@ -108,9 +108,9 @@ def voxel_grid_downsample(points, num_voxels):
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--model', type=str, default="G:/nll_loss_based_ckpts/fold1/seg_model_spine_249.pth", help='model path')
+parser.add_argument('--model', type=str, default="./checkpoints/fold_1/ckpt-best.pth", help='model path')
 parser.add_argument('--idx', type=int, default=0, help='model index')
-parser.add_argument('--dataset', type=str, default='G:/PointNet_data', help='dataset path')
+parser.add_argument('--dataset', type=str, default='Users/aidanamassalimova/Documents/PointNet_data', help='dataset path')
 parser.add_argument('--class_choice', type=str, default='spine', help='class choice')
 parser.add_argument('--fold', type=int, default=1)
 
@@ -311,85 +311,87 @@ for idx in range(len(val_dataset)):
         background_pcd_gt.paint_uniform_color((0,0,0))
         background_pcd.paint_uniform_color((0,1,0))
 
-        metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
+        o3d.visualization.draw_geometries([L1_pcd,L2_pcd, L3_pcd, L4_pcd, L5_pcd])
 
-        IoU_total.append(metrics['Overall IoU'])
-        Accuracy_total.append(metrics['Overall Accuracy'])
-        Dice_total.append(metrics['Overall Dice'])
-
-        acc_L1_total.append(metrics['Accuracy'][1])
-        acc_L2_total.append(metrics['Accuracy'][2])
-        acc_L3_total.append(metrics['Accuracy'][3])
-        acc_L4_total.append(metrics['Accuracy'][4])
-        acc_L5_total.append(metrics['Accuracy'][5])
-
-        iou_L1_total.append(metrics['IoU'][1])
-        iou_L2_total.append(metrics['IoU'][2])
-        iou_L3_total.append(metrics['IoU'][3])
-        iou_L4_total.append(metrics['IoU'][4])
-        iou_L5_total.append(metrics['IoU'][5])
-
-        dice_L1_total.append(metrics['Dice'][1])
-        dice_L2_total.append(metrics['Dice'][2])
-        dice_L3_total.append(metrics['Dice'][3])
-        dice_L4_total.append(metrics['Dice'][4])
-        dice_L5_total.append(metrics['Dice'][5])
-
-        L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
-        L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
-        L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
-        L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
-        L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
-
-        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L1.pcd"),L1_stl_dwp)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L2.pcd"),L2_stl_dwp)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L3.pcd"),L3_stl_dwp)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L4.pcd"),L4_stl_dwp)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L5.pcd"),L5_stl_dwp)
-
-        if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L1")):
-            os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L1"))
-        if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L2")):
-            os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L2"))
-        if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L3")):
-            os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L3"))
-        if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L4")):
-            os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L4"))
-        if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L5")):
-            os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L5"))
-
-        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L1","00.pcd"), L1_pcd)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L2","00.pcd"), L2_pcd)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L3","00.pcd"), L3_pcd)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L4","00.pcd"), L4_pcd)
-        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L5","00.pcd"), L5_pcd)
-
-print(len(iou_L1_total))
-
-print("mean L1 IoU:", np.mean(iou_L1_total))
-print("mean L1 Accuracy:", np.mean(acc_L1_total))
-print("mean L1 dice:", np.mean(dice_L1_total))
-
-
-print("mean L2 IoU:", np.mean(iou_L2_total))
-print("mean L2 Accuracy:", np.mean(acc_L2_total))
-print("mean L2 dice:", np.mean(dice_L2_total))
-
-
-print("mean L3 IoU:", np.mean(iou_L3_total))
-print("mean L3 Accuracy:", np.mean(acc_L3_total))
-print("mean L3 dice:", np.mean(dice_L3_total))
-
-
-print("mean L4 IoU:", np.mean(iou_L4_total))
-print("mean L4 Accuracy:", np.mean(acc_L4_total))
-print("mean L4 dice:", np.mean(dice_L4_total))
-
-
-print("mean L5 IoU:", np.mean(iou_L5_total))
-print("mean L5 Accuracy:", np.mean(acc_L5_total))
-print("mean L5 dice:", np.mean(dice_L5_total))
-
-print("mean IoU:", np.mean(IoU_total))
-print("mean Accuracy:", np.mean(Accuracy_total))
-print("mean Dice:",np.mean(Dice_total))
+#         metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
+#
+#         IoU_total.append(metrics['Overall IoU'])
+#         Accuracy_total.append(metrics['Overall Accuracy'])
+#         Dice_total.append(metrics['Overall Dice'])
+#
+#         acc_L1_total.append(metrics['Accuracy'][1])
+#         acc_L2_total.append(metrics['Accuracy'][2])
+#         acc_L3_total.append(metrics['Accuracy'][3])
+#         acc_L4_total.append(metrics['Accuracy'][4])
+#         acc_L5_total.append(metrics['Accuracy'][5])
+#
+#         iou_L1_total.append(metrics['IoU'][1])
+#         iou_L2_total.append(metrics['IoU'][2])
+#         iou_L3_total.append(metrics['IoU'][3])
+#         iou_L4_total.append(metrics['IoU'][4])
+#         iou_L5_total.append(metrics['IoU'][5])
+#
+#         dice_L1_total.append(metrics['Dice'][1])
+#         dice_L2_total.append(metrics['Dice'][2])
+#         dice_L3_total.append(metrics['Dice'][3])
+#         dice_L4_total.append(metrics['Dice'][4])
+#         dice_L5_total.append(metrics['Dice'][5])
+#
+#         L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
+#         L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
+#         L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
+#         L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
+#         L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
+#
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L1.pcd"),L1_stl_dwp)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L2.pcd"),L2_stl_dwp)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L3.pcd"),L3_stl_dwp)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L4.pcd"),L4_stl_dwp)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L5.pcd"),L5_stl_dwp)
+#
+#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L1")):
+#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L1"))
+#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L2")):
+#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L2"))
+#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L3")):
+#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L3"))
+#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L4")):
+#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L4"))
+#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L5")):
+#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L5"))
+#
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L1","00.pcd"), L1_pcd)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L2","00.pcd"), L2_pcd)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L3","00.pcd"), L3_pcd)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L4","00.pcd"), L4_pcd)
+#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L5","00.pcd"), L5_pcd)
+#
+# print(len(iou_L1_total))
+#
+# print("mean L1 IoU:", np.mean(iou_L1_total))
+# print("mean L1 Accuracy:", np.mean(acc_L1_total))
+# print("mean L1 dice:", np.mean(dice_L1_total))
+#
+#
+# print("mean L2 IoU:", np.mean(iou_L2_total))
+# print("mean L2 Accuracy:", np.mean(acc_L2_total))
+# print("mean L2 dice:", np.mean(dice_L2_total))
+#
+#
+# print("mean L3 IoU:", np.mean(iou_L3_total))
+# print("mean L3 Accuracy:", np.mean(acc_L3_total))
+# print("mean L3 dice:", np.mean(dice_L3_total))
+#
+#
+# print("mean L4 IoU:", np.mean(iou_L4_total))
+# print("mean L4 Accuracy:", np.mean(acc_L4_total))
+# print("mean L4 dice:", np.mean(dice_L4_total))
+#
+#
+# print("mean L5 IoU:", np.mean(iou_L5_total))
+# print("mean L5 Accuracy:", np.mean(acc_L5_total))
+# print("mean L5 dice:", np.mean(dice_L5_total))
+#
+# print("mean IoU:", np.mean(IoU_total))
+# print("mean Accuracy:", np.mean(Accuracy_total))
+# print("mean Dice:",np.mean(Dice_total))
