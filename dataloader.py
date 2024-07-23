@@ -119,7 +119,7 @@ class ShapeNetDataset(data.Dataset):
 
         choice = np.random.choice(len(seg), self.npoints, replace=True)
         # resample
-        point_set = point_set[choice, :]
+        #point_set = point_set[choice, :]
         trans = np.expand_dims(np.mean(point_set, axis=0), 0)
         point_set = point_set - trans  # center
         dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
@@ -131,7 +131,7 @@ class ShapeNetDataset(data.Dataset):
             point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
             point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
 
-        seg = seg[choice]
+        #seg = seg[choice]
         point_set = torch.from_numpy(point_set)
         seg = torch.from_numpy(seg)
         cls = torch.from_numpy(np.array([cls]).astype(np.int64))

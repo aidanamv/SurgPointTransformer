@@ -108,115 +108,124 @@ def voxel_grid_downsample(points, num_voxels):
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--model', type=str, default="./checkpoints/fold_1/ckpt-best.pth", help='model path')
-parser.add_argument('--idx', type=int, default=0, help='model index')
-parser.add_argument('--dataset', type=str, default='Users/aidanamassalimova/Documents/PointNet_data', help='dataset path')
-parser.add_argument('--class_choice', type=str, default='spine', help='class choice')
-parser.add_argument('--fold', type=int, default=1)
+
 
 opt = parser.parse_args()
-print(opt)
+for fold in range(9,10):
+
+    model ="./checkpoints/fold_{}/ckpt-best.pth".format(fold)
+    dataset = "/home/aidana/Documents/PointNet_data"
+
+    train_dataset = ShapeNetDataset(
+        root=dataset,
+        fold=fold,
+        class_choice=["spine"],
+        split="train",
+        data_augmentation=False)
+
+    val_dataset = ShapeNetDataset(
+        root=dataset,
+        fold = fold,
+        class_choice=["spine"],
+        split="val",
+        data_augmentation=False)
 
 
-val_dataset = ShapeNetDataset(
-    root=opt.dataset,
-    fold = opt.fold,
-    class_choice=[opt.class_choice],
-    split='val',
-    data_augmentation=False)
+    IoU_total = []
+    Accuracy_total = []
+    Dice_total = []
+
+    iou_L1_total = []
+    iou_L2_total = []
+
+    iou_L3_total = []
+    iou_L4_total = []
+    iou_L5_total = []
+
+    acc_L1_total = []
+    acc_L2_total = []
+    acc_L3_total = []
+    acc_L4_total = []
+    acc_L5_total = []
+
+    dice_L1_total = []
+    dice_L2_total = []
+    dice_L3_total = []
+    dice_L4_total = []
+    dice_L5_total = []
+
+    stls_dir = "/home/aidana/Documents/stls_transformed"
+    save_val_dir ="./PoinTr/data/PCN/pcn_fold_{}/val".format(fold-1)
+    save_train_dir ="./PoinTr/data/PCN/pcn_fold_{}/train".format(fold-1)
+
+    sets = ["complete", "partial"]
+    for set in sets:
+        if not os.path.exists(os.path.join(save_val_dir,set,"10102023")):
+            os.makedirs(os.path.join(save_val_dir,set,"10102023"))
+        if not os.path.exists(os.path.join(save_train_dir, set, "10102023")):
+            os.makedirs(os.path.join(save_train_dir, set, "10102023"))
+    for idx in range(235,len(train_dataset)):
+
+        print("model %d/%d" % (idx, len(train_dataset)))
+        point, gt,filepath,dist,trans = train_dataset[idx]
+
+        filename = filepath.split("/")[-1][:-4]
+        print(filename)
+        _,specimen, _, recording, _, cam,_, frame = filename.split("_")
+        point_np = point.numpy()
+        L1_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra1.stl"))
+
+        L2_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra2.stl"))
+
+        L3_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra3.stl"))
+
+        L4_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra4.stl"))
+        L5_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra5.stl"))
+
+        L1_stl.compute_vertex_normals()
+        L2_stl.compute_vertex_normals()
+        L3_stl.compute_vertex_normals()
+        L4_stl.compute_vertex_normals()
+        L5_stl.compute_vertex_normals()
+
+        state_dict = torch.load(model,map_location=torch.device('cpu'))
+        classifier = PointNetDenseCls(k= 6)
+        classifier.load_state_dict(state_dict)
+        classifier.eval()
+
+        point = point.transpose(1, 0)
+        point = Variable(point.view(1, point.size()[0], point.size()[1]))
+        pred, _, _ = classifier(point)
+        pred_choice = pred.data.max(2)[1].cpu().numpy()
 
 
-IoU_total = []
-Accuracy_total = []
-Dice_total = []
+        # Calculate the mean and standard deviation for each dimension
+        mean = np.mean(point_np, axis=0)
+        std_dev = np.std(point_np, axis=0)
 
-iou_L1_total = []
-iou_L2_total = []
-iou_L3_total = []
-iou_L4_total = []
-iou_L5_total = []
+        # Calculate the Z-scores for each point
+        z_scores = (point_np - mean) / std_dev
 
-acc_L1_total = []
-acc_L2_total = []
-acc_L3_total = []
-acc_L4_total = []
-acc_L5_total = []
+        # Set a Z-score threshold (e.g., 3 standard deviations)
+        threshold = 3
 
-dice_L1_total = []
-dice_L2_total = []
-dice_L3_total = []
-dice_L4_total = []
-dice_L5_total = []
-
-stls_dir = "G:/PoinTr_dataset/stls_transformed"
-save_val_dir =r"G:\\pointr_data\\fold_{}\\val".format(opt.fold)
-sets = ["complete", "partial"]
-for set in sets:
-    if not os.path.exists(os.path.join(save_val_dir,set)):
-        os.makedirs(os.path.join(save_val_dir,set))
-
-for idx in range(len(val_dataset)):
-    print("model %d/%d" % (idx, len(val_dataset)))
-    point, gt,filepath,dist,trans = val_dataset[idx]
-
-    filename = filepath.split("\\")[-1][:-4]
-    print(filename)
-    _,specimen, _, recording, _, cam,_, frame = filename.split("_")
-    point_np = point.numpy()
-    L1_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                  "recording_" + str(recording),
-                                  "cam_" + str(cam), "frame_" + str(frame),
-                                  "transformed_vertebra1.stl"))
-
-    L2_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                  "recording_" + str(recording),
-                                  "cam_" + str(cam), "frame_" + str(frame),
-                                  "transformed_vertebra2.stl"))
-
-    L3_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                  "recording_" + str(recording),
-                                  "cam_" + str(cam), "frame_" + str(frame),
-                                  "transformed_vertebra3.stl"))
-
-    L4_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                  "recording_" + str(recording),
-                                  "cam_" + str(cam), "frame_" + str(frame),
-                                  "transformed_vertebra4.stl"))
-    L5_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                  "recording_" + str(recording),
-                                  "cam_" + str(cam), "frame_" + str(frame),
-                                  "transformed_vertebra5.stl"))
-
-    L1_stl.compute_vertex_normals()
-    L2_stl.compute_vertex_normals()
-    L3_stl.compute_vertex_normals()
-    L4_stl.compute_vertex_normals()
-    L5_stl.compute_vertex_normals()
-
-    state_dict = torch.load(opt.model,map_location=torch.device('cuda'))
-    classifier = PointNetDenseCls(k= 6).cuda()
-    classifier.load_state_dict(state_dict)
-    classifier.eval()
-
-    point = point.transpose(1, 0).contiguous().cuda()
-
-    point = Variable(point.view(1, point.size()[0], point.size()[1]))
-    pred, _, _ = classifier(point)
-    pred_choice = pred.data.max(2)[1].cpu().numpy()
-
-
-    # Calculate the mean and standard deviation for each dimension
-    mean = np.mean(point_np, axis=0)
-    std_dev = np.std(point_np, axis=0)
-
-    # Calculate the Z-scores for each point
-    z_scores = (point_np - mean) / std_dev
-
-    # Set a Z-score threshold (e.g., 3 standard deviations)
-    threshold = 3
-
-    # Identify points with Z-scores within the threshold
-    non_outliers = (np.abs(z_scores) < threshold).all(axis=1)
+        # Identify points with Z-scores within the threshold
+        non_outliers = (np.abs(z_scores) < threshold).all(axis=1)
 
 
 
@@ -224,19 +233,18 @@ for idx in range(len(val_dataset)):
 
 
 
-    # Filter out the outliers
-    filtered_point_cloud = point_np[non_outliers]
-    filtered_pred = pred_choice[0][non_outliers]
-    filtered_gt = gt[non_outliers]
+        # Filter out the outliers
+        filtered_point_cloud = point_np[non_outliers]
+        filtered_pred = pred_choice[0][non_outliers]
+        filtered_gt = gt[non_outliers]
 
-    L1 = np.where(filtered_pred == 1)[0]
-    L2 = np.where(filtered_pred == 2)[0]
-    L3 = np.where(filtered_pred == 3)[0]
-    L4 = np.where(filtered_pred == 4)[0]
-    L5 = np.where(filtered_pred == 5)[0]
-    background = np.where(filtered_pred == 0)[0]
+        L1 = np.where(filtered_pred == 1)[0]
+        L2 = np.where(filtered_pred == 2)[0]
+        L3 = np.where(filtered_pred == 3)[0]
+        L4 = np.where(filtered_pred == 4)[0]
+        L5 = np.where(filtered_pred == 5)[0]
+        background = np.where(filtered_pred == 0)[0]
 
-    if len(L1) and len(L2) and len(L3) and len(L4) and len(L5):
 
 
 
@@ -311,87 +319,300 @@ for idx in range(len(val_dataset)):
         background_pcd_gt.paint_uniform_color((0,0,0))
         background_pcd.paint_uniform_color((0,1,0))
 
-        o3d.visualization.draw_geometries([L1_pcd,L2_pcd, L3_pcd, L4_pcd, L5_pcd])
 
-#         metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
-#
-#         IoU_total.append(metrics['Overall IoU'])
-#         Accuracy_total.append(metrics['Overall Accuracy'])
-#         Dice_total.append(metrics['Overall Dice'])
-#
-#         acc_L1_total.append(metrics['Accuracy'][1])
-#         acc_L2_total.append(metrics['Accuracy'][2])
-#         acc_L3_total.append(metrics['Accuracy'][3])
-#         acc_L4_total.append(metrics['Accuracy'][4])
-#         acc_L5_total.append(metrics['Accuracy'][5])
-#
-#         iou_L1_total.append(metrics['IoU'][1])
-#         iou_L2_total.append(metrics['IoU'][2])
-#         iou_L3_total.append(metrics['IoU'][3])
-#         iou_L4_total.append(metrics['IoU'][4])
-#         iou_L5_total.append(metrics['IoU'][5])
-#
-#         dice_L1_total.append(metrics['Dice'][1])
-#         dice_L2_total.append(metrics['Dice'][2])
-#         dice_L3_total.append(metrics['Dice'][3])
-#         dice_L4_total.append(metrics['Dice'][4])
-#         dice_L5_total.append(metrics['Dice'][5])
-#
-#         L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
-#         L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
-#         L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
-#         L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
-#         L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
-#
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L1.pcd"),L1_stl_dwp)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L2.pcd"),L2_stl_dwp)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L3.pcd"),L3_stl_dwp)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L4.pcd"),L4_stl_dwp)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete",filename+"_L5.pcd"),L5_stl_dwp)
-#
-#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L1")):
-#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L1"))
-#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L2")):
-#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L2"))
-#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L3")):
-#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L3"))
-#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L4")):
-#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L4"))
-#         if not os.path.exists(os.path.join(save_val_dir, "partial", filename + "_L5")):
-#             os.makedirs(os.path.join(save_val_dir, "partial", filename + "_L5"))
-#
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L1","00.pcd"), L1_pcd)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L2","00.pcd"), L2_pcd)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L3","00.pcd"), L3_pcd)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L4","00.pcd"), L4_pcd)
-#         o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", filename + "_L5","00.pcd"), L5_pcd)
-#
-# print(len(iou_L1_total))
-#
-# print("mean L1 IoU:", np.mean(iou_L1_total))
-# print("mean L1 Accuracy:", np.mean(acc_L1_total))
-# print("mean L1 dice:", np.mean(dice_L1_total))
-#
-#
-# print("mean L2 IoU:", np.mean(iou_L2_total))
-# print("mean L2 Accuracy:", np.mean(acc_L2_total))
-# print("mean L2 dice:", np.mean(dice_L2_total))
-#
-#
-# print("mean L3 IoU:", np.mean(iou_L3_total))
-# print("mean L3 Accuracy:", np.mean(acc_L3_total))
-# print("mean L3 dice:", np.mean(dice_L3_total))
-#
-#
-# print("mean L4 IoU:", np.mean(iou_L4_total))
-# print("mean L4 Accuracy:", np.mean(acc_L4_total))
-# print("mean L4 dice:", np.mean(dice_L4_total))
-#
-#
-# print("mean L5 IoU:", np.mean(iou_L5_total))
-# print("mean L5 Accuracy:", np.mean(acc_L5_total))
-# print("mean L5 dice:", np.mean(dice_L5_total))
-#
-# print("mean IoU:", np.mean(IoU_total))
-# print("mean Accuracy:", np.mean(Accuracy_total))
-# print("mean Dice:",np.mean(Dice_total))
+        metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
+
+        IoU_total.append(metrics['Overall IoU'])
+        Accuracy_total.append(metrics['Overall Accuracy'])
+        Dice_total.append(metrics['Overall Dice'])
+
+        acc_L1_total.append(metrics['Accuracy'][1])
+        acc_L2_total.append(metrics['Accuracy'][2])
+        acc_L3_total.append(metrics['Accuracy'][3])
+        acc_L4_total.append(metrics['Accuracy'][4])
+        acc_L5_total.append(metrics['Accuracy'][5])
+
+        iou_L1_total.append(metrics['IoU'][1])
+        iou_L2_total.append(metrics['IoU'][2])
+        iou_L3_total.append(metrics['IoU'][3])
+        iou_L4_total.append(metrics['IoU'][4])
+        iou_L5_total.append(metrics['IoU'][5])
+
+        dice_L1_total.append(metrics['Dice'][1])
+        dice_L2_total.append(metrics['Dice'][2])
+        dice_L3_total.append(metrics['Dice'][3])
+        dice_L4_total.append(metrics['Dice'][4])
+        dice_L5_total.append(metrics['Dice'][5])
+
+        L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
+        L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
+        L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
+        L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
+        L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
+
+       # o3d.visualization.draw_geometries([L1_pcd,L2_pcd,L3_pcd,L4_pcd,L5_pcd,background_pcd,
+        #                                   L1_stl_dwp, L2_stl_dwp, L3_stl_dwp, L4_stl_dwp, L5_stl_dwp])
+
+        o3d.io.write_point_cloud(os.path.join(save_train_dir,"complete","10102023",filename+"_L1.pcd"),L1_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir,"complete","10102023",filename+"_L2.pcd"),L2_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir,"complete","10102023",filename+"_L3.pcd"),L3_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir,"complete","10102023",filename+"_L4.pcd"),L4_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir,"complete","10102023",filename+"_L5.pcd"),L5_stl_dwp)
+
+        if not os.path.exists(os.path.join(save_train_dir, "partial", "10102023",filename + "_L1")):
+            os.makedirs(os.path.join(save_train_dir, "partial", "10102023",filename + "_L1"))
+        if not os.path.exists(os.path.join(save_train_dir, "partial", "10102023",filename + "_L2")):
+            os.makedirs(os.path.join(save_train_dir, "partial", "10102023",filename + "_L2"))
+        if not os.path.exists(os.path.join(save_train_dir, "partial","10102023", filename + "_L3")):
+            os.makedirs(os.path.join(save_train_dir, "partial", "10102023",filename + "_L3"))
+        if not os.path.exists(os.path.join(save_train_dir, "partial", "10102023",filename + "_L4")):
+            os.makedirs(os.path.join(save_train_dir, "partial", "10102023",filename + "_L4"))
+        if not os.path.exists(os.path.join(save_train_dir, "partial", "10102023",filename + "_L5")):
+            os.makedirs(os.path.join(save_train_dir, "partial","10102023", filename + "_L5"))
+
+        o3d.io.write_point_cloud(os.path.join(save_train_dir, "partial", "10102023",filename + "_L1","00.pcd"), L1_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir, "partial","10102023", filename + "_L2","00.pcd"), L2_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir, "partial", "10102023",filename + "_L3","00.pcd"), L3_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir, "partial", "10102023",filename + "_L4","00.pcd"), L4_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_train_dir, "partial", "10102023",filename + "_L5","00.pcd"), L5_pcd)
+
+    for idx in range(len(val_dataset)):
+        print("model %d/%d" % (idx, len(val_dataset)))
+        point, gt,filepath,dist,trans = val_dataset[idx]
+
+        filename = filepath.split("/")[-1][:-4]
+        print(filename)
+        _,specimen, _, recording, _, cam,_, frame = filename.split("_")
+        point_np = point.numpy()
+        L1_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra1.stl"))
+
+        L2_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra2.stl"))
+
+        L3_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra3.stl"))
+
+        L4_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra4.stl"))
+        L5_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                      "recording_" + str(recording),
+                                      "cam_" + str(cam), "frame_" + str(frame),
+                                      "transformed_vertebra5.stl"))
+
+        L1_stl.compute_vertex_normals()
+        L2_stl.compute_vertex_normals()
+        L3_stl.compute_vertex_normals()
+        L4_stl.compute_vertex_normals()
+        L5_stl.compute_vertex_normals()
+
+        state_dict = torch.load(model,map_location=torch.device('cpu'))
+        classifier = PointNetDenseCls(k= 6)
+        classifier.load_state_dict(state_dict)
+        classifier.eval()
+
+        point = point.transpose(1, 0)
+        point = Variable(point.view(1, point.size()[0], point.size()[1]))
+        pred, _, _ = classifier(point)
+        pred_choice = pred.data.max(2)[1].cpu().numpy()
+
+
+        # Calculate the mean and standard deviation for each dimension
+        mean = np.mean(point_np, axis=0)
+        std_dev = np.std(point_np, axis=0)
+
+        # Calculate the Z-scores for each point
+        z_scores = (point_np - mean) / std_dev
+
+        # Set a Z-score threshold (e.g., 3 standard deviations)
+        threshold = 3
+
+        # Identify points with Z-scores within the threshold
+        non_outliers = (np.abs(z_scores) < threshold).all(axis=1)
+
+
+
+
+
+
+
+        # Filter out the outliers
+        filtered_point_cloud = point_np[non_outliers]
+        filtered_pred = pred_choice[0][non_outliers]
+        filtered_gt = gt[non_outliers]
+
+        L1 = np.where(filtered_pred == 1)[0]
+        L2 = np.where(filtered_pred == 2)[0]
+        L3 = np.where(filtered_pred == 3)[0]
+        L4 = np.where(filtered_pred == 4)[0]
+        L5 = np.where(filtered_pred == 5)[0]
+        background = np.where(filtered_pred == 0)[0]
+
+
+
+
+        #ground truth labels
+
+        L1_gt = np.where(filtered_gt == 1)[0]
+        L2_gt = np.where(filtered_gt == 2)[0]
+        L3_gt = np.where(filtered_gt == 3)[0]
+        L4_gt = np.where(filtered_gt == 4)[0]
+        L5_gt = np.where(filtered_gt == 5)[0]
+        background_gt = np.where(filtered_gt == 0)[0]
+
+        colors = np.zeros((filtered_point_cloud.shape[0], 3))
+        colors[L1, :] =(1,0,0)
+        colors[L2, :] = (0,1,0)
+        colors[L3, :] = (0,0,1)
+        colors[L4, :] = (1,1,0)
+        colors[L5, :] = (1,0,1)
+        colors[background, :] = (0,0,0)
+
+        filtered_point_cloud = filtered_point_cloud * dist + trans
+        filtered_pcd = o3d.geometry.PointCloud()
+        filtered_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud)
+        filtered_pcd.colors = o3d.utility.Vector3dVector(colors)
+
+
+        L1_pcd = o3d.geometry.PointCloud()
+        L2_pcd = o3d.geometry.PointCloud()
+        L3_pcd = o3d.geometry.PointCloud()
+        L4_pcd = o3d.geometry.PointCloud()
+        L5_pcd = o3d.geometry.PointCloud()
+        background_pcd = o3d.geometry.PointCloud()
+
+        L1_pcd_gt = o3d.geometry.PointCloud()
+        L2_pcd_gt = o3d.geometry.PointCloud()
+        L3_pcd_gt = o3d.geometry.PointCloud()
+        L4_pcd_gt = o3d.geometry.PointCloud()
+        L5_pcd_gt = o3d.geometry.PointCloud()
+        background_pcd_gt = o3d.geometry.PointCloud()
+
+
+        L1_pcd_gt.points = o3d.utility.Vector3dVector(filtered_point_cloud[L1_gt,:])
+        L2_pcd_gt.points = o3d.utility.Vector3dVector(filtered_point_cloud[L2_gt,:])
+        L3_pcd_gt.points = o3d.utility.Vector3dVector(filtered_point_cloud[L3_gt,:])
+        L4_pcd_gt.points = o3d.utility.Vector3dVector(filtered_point_cloud[L4_gt,:])
+        L5_pcd_gt.points = o3d.utility.Vector3dVector(filtered_point_cloud[L5_gt,:])
+        background_pcd_gt.points = o3d.utility.Vector3dVector(filtered_point_cloud[background_gt,:])
+
+
+        L1_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud[L1,:])
+        L2_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud[L2,:])
+        L3_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud[L3,:])
+        L4_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud[L4,:])
+        L5_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud[L5,:])
+        background_pcd.points = o3d.utility.Vector3dVector(filtered_point_cloud[background,:])
+
+
+        L1_pcd.paint_uniform_color((1,0,0))
+        L2_pcd.paint_uniform_color((1,0,0))
+        L3_pcd.paint_uniform_color((1,0,0))
+        L4_pcd.paint_uniform_color((1,0,0))
+        L5_pcd.paint_uniform_color((1,0,0))
+
+
+
+        L1_pcd_gt.paint_uniform_color((0,0,1))
+        L2_pcd_gt.paint_uniform_color((0,0,1))
+        L3_pcd_gt.paint_uniform_color((0,0,1))
+        L4_pcd_gt.paint_uniform_color((0,0,1))
+        L5_pcd_gt.paint_uniform_color((0,0,1))
+
+        background_pcd_gt.paint_uniform_color((0,0,0))
+        background_pcd.paint_uniform_color((0,1,0))
+
+
+        metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
+
+        IoU_total.append(metrics['Overall IoU'])
+        Accuracy_total.append(metrics['Overall Accuracy'])
+        Dice_total.append(metrics['Overall Dice'])
+
+        acc_L1_total.append(metrics['Accuracy'][1])
+        acc_L2_total.append(metrics['Accuracy'][2])
+        acc_L3_total.append(metrics['Accuracy'][3])
+        acc_L4_total.append(metrics['Accuracy'][4])
+        acc_L5_total.append(metrics['Accuracy'][5])
+
+        iou_L1_total.append(metrics['IoU'][1])
+        iou_L2_total.append(metrics['IoU'][2])
+        iou_L3_total.append(metrics['IoU'][3])
+        iou_L4_total.append(metrics['IoU'][4])
+        iou_L5_total.append(metrics['IoU'][5])
+
+        dice_L1_total.append(metrics['Dice'][1])
+        dice_L2_total.append(metrics['Dice'][2])
+        dice_L3_total.append(metrics['Dice'][3])
+        dice_L4_total.append(metrics['Dice'][4])
+        dice_L5_total.append(metrics['Dice'][5])
+
+        L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
+        L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
+        L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
+        L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
+        L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
+
+       # o3d.visualization.draw_geometries([L1_pcd,L2_pcd,L3_pcd,L4_pcd,L5_pcd,background_pcd,
+        #                                   L1_stl_dwp, L2_stl_dwp, L3_stl_dwp, L4_stl_dwp, L5_stl_dwp])
+
+        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete","10102023",filename+"_L1.pcd"),L1_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete","10102023",filename+"_L2.pcd"),L2_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete","10102023",filename+"_L3.pcd"),L3_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete","10102023",filename+"_L4.pcd"),L4_stl_dwp)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir,"complete","10102023",filename+"_L5.pcd"),L5_stl_dwp)
+
+        if not os.path.exists(os.path.join(save_val_dir, "partial", "10102023",filename + "_L1")):
+            os.makedirs(os.path.join(save_val_dir, "partial", "10102023",filename + "_L1"))
+        if not os.path.exists(os.path.join(save_val_dir, "partial", "10102023",filename + "_L2")):
+            os.makedirs(os.path.join(save_val_dir, "partial", "10102023",filename + "_L2"))
+        if not os.path.exists(os.path.join(save_val_dir, "partial","10102023", filename + "_L3")):
+            os.makedirs(os.path.join(save_val_dir, "partial", "10102023",filename + "_L3"))
+        if not os.path.exists(os.path.join(save_val_dir, "partial", "10102023",filename + "_L4")):
+            os.makedirs(os.path.join(save_val_dir, "partial", "10102023",filename + "_L4"))
+        if not os.path.exists(os.path.join(save_val_dir, "partial", "10102023",filename + "_L5")):
+            os.makedirs(os.path.join(save_val_dir, "partial","10102023", filename + "_L5"))
+
+        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", "10102023",filename + "_L1","00.pcd"), L1_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial","10102023", filename + "_L2","00.pcd"), L2_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", "10102023",filename + "_L3","00.pcd"), L3_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", "10102023",filename + "_L4","00.pcd"), L4_pcd)
+        o3d.io.write_point_cloud(os.path.join(save_val_dir, "partial", "10102023",filename + "_L5","00.pcd"), L5_pcd)
+
+    print(len(iou_L1_total))
+
+    print("mean L1 IoU:", np.mean(iou_L1_total))
+    print("mean L1 Accuracy:", np.mean(acc_L1_total))
+    print("mean L1 dice:", np.mean(dice_L1_total))
+
+
+    print("mean L2 IoU:", np.mean(iou_L2_total))
+    print("mean L2 Accuracy:", np.mean(acc_L2_total))
+    print("mean L2 dice:", np.mean(dice_L2_total))
+
+
+    print("mean L3 IoU:", np.mean(iou_L3_total))
+    print("mean L3 Accuracy:", np.mean(acc_L3_total))
+    print("mean L3 dice:", np.mean(dice_L3_total))
+
+
+    print("mean L4 IoU:", np.mean(iou_L4_total))
+    print("mean L4 Accuracy:", np.mean(acc_L4_total))
+    print("mean L4 dice:", np.mean(dice_L4_total))
+
+
+    print("mean L5 IoU:", np.mean(iou_L5_total))
+    print("mean L5 Accuracy:", np.mean(acc_L5_total))
+    print("mean L5 dice:", np.mean(dice_L5_total))
+
+    print("mean IoU:", np.mean(IoU_total))
+    print("mean Accuracy:", np.mean(Accuracy_total))
+    print("mean Dice:",np.mean(Dice_total))

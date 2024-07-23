@@ -12,16 +12,16 @@ import pyvista as pv
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--model', type=str, default="./checkpoints/fold_1/ckpt-best.pth", help='model path')
+parser.add_argument('--model', type=str, default="./checkpoints/fold_3/ckpt-best.pth", help='model path')
 parser.add_argument('--idx', type=int, default=0, help='model index')
-parser.add_argument('--dataset', type=str, default='/Users/aidanamassalimova/Documents/PointNet_data', help='dataset path')
+parser.add_argument('--dataset', type=str, default='/home/aidana/Documents/PointNet_data', help='dataset path')
 parser.add_argument('--class_choice', type=str, default='spine', help='class choice')
-parser.add_argument('--fold', type=int, default=1)
+parser.add_argument('--fold', type=int, default=3)
 
 opt = parser.parse_args()
 print(opt)
 
-stls_dir = "/Volumes/SpineDepth/PoinTr_dataset/stls_transformed"
+stls_dir = "/home/aidana/Documents/stls_transformed"
 
 val_dataset = ShapeNetDataset(
     root=opt.dataset,
