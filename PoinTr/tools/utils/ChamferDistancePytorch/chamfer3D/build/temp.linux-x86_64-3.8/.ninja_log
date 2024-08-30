@@ -1,0 +1,3 @@
+# ninja log v5
+0	20335	1723029629215360083	/home/aidana/PycharmProjects/RGBDSeg/VRCNet/utils/ChamferDistancePytorch/chamfer3D/build/temp.linux-x86_64-3.8/chamfer3D.o	b0d82398e5d571bc
+0	25550	1723029634427360199	/home/aidana/PycharmProjects/RGBDSeg/VRCNet/utils/ChamferDistancePytorch/chamfer3D/build/temp.linux-x86_64-3.8/chamfer_cuda.o	dc120d9770114be0

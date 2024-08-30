@@ -1,0 +1,4 @@
+# ninja log v5
+0	30965	1721206737116817905	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/gridding/build/temp.linux-x86_64-3.8/gridding_cuda.o	ec90db3731821d70
+0	46935	1721206753088818262	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/gridding/build/temp.linux-x86_64-3.8/gridding.o	74cc33592e006554
+0	49738	1721206755888818325	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/gridding/build/temp.linux-x86_64-3.8/gridding_reverse.o	bfa4c1bfdaaf0fd2
