@@ -1,9 +1,7 @@
 from tools import run_net
-from tools import test_net, test_pointnet
+from tools import  test
 from utils import parser, dist_utils, misc
 from utils.config import *
-import time
-import os
 import torch
 def main():
     # args
@@ -40,7 +38,7 @@ def main():
 
     # run
     if args.test:
-        test_pointnet(args, config)
+        test(args, config)
     else:
         run_net(args, config)
 

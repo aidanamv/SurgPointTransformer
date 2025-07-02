@@ -8,8 +8,8 @@ class IO:
     def get(cls, file_path):
         _, file_extension = os.path.splitext(file_path)
 
-        if file_extension in ['.npy']:
-            return cls._read_npy(file_path)
+        if file_extension in ['.npz']:
+            return cls._read_npz(file_path)
         elif file_extension in ['.pcd', '.ply']:
             return cls._read_pcd(file_path)
         elif file_extension in ['.h5']:
@@ -21,8 +21,8 @@ class IO:
 
     # References: https://github.com/numpy/numpy/blob/master/numpy/lib/format.py
     @classmethod
-    def _read_npy(cls, file_path):
-        return np.load(file_path)
+    def _read_npz(cls, file_path):
+        return np.load(file_path)["arr_0"]
        
     # References: https://github.com/dimatura/pypcd/blob/master/pypcd/pypcd.py#L275
     # Support PCD files without compression ONLY!

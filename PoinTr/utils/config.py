@@ -46,7 +46,7 @@ def cfg_from_yaml_file(cfg_file):
 
 def get_config(args, logger=None):
     if args.resume:
-        cfg_path = os.path.join(args.experiment_path, 'config.yaml')
+        cfg_path = os.path.join(args.experiment_path, 'AdaPoinTr.yaml')
         if not os.path.exists(cfg_path):
             print_log("Failed to resume", logger = logger)
             raise FileNotFoundError()
@@ -58,6 +58,6 @@ def get_config(args, logger=None):
     return config
 
 def save_experiment_config(args, config, logger = None):
-    config_path = os.path.join(args.experiment_path, 'config.yaml')
+    config_path = os.path.join(args.experiment_path, 'AdaPoinTr.yaml')
     os.system('cp %s %s' % (args.config, config_path))
     print_log(f'Copy the Config file from {args.config} to {config_path}',logger = logger )

@@ -8,8 +8,8 @@ import random
 
 class ShapeNetDataset(data.Dataset):
     def __init__(self, fold=2,train=True, npoints=2048):
-        self.input_path = "/home/aidana/PycharmProjects/RGBDSeg/PoinTr/data/PointTr_data/partial"
-        self.gt_path = "/home/aidana/PycharmProjects/RGBDSeg/PoinTr/data/PointTr_data/complete"
+        self.input_path = "//PoinTr/data/PointTr_data/partial"
+        self.gt_path = "//PoinTr/data/PointTr_data/complete"
         self.fold = fold
         # Load the JSON data from a file
         with open('../data/PointTr_data/fold_{}.json'.format(fold), 'r') as file:

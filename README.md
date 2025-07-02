@@ -73,10 +73,53 @@ pip install -r requirements.txt
 
 ```bash
 # Train YOLOv8 for localization
-python train_yolo.py
+python train_yolo.py \
+  --model yolov10n.yaml \
+  --data dataset.yaml \
+  --epochs 50 \
+  --imgsz 640 \
+  --batch 16 \
+  --device 0 \
+  --name spine_detection_v10n
+
+
+# visualize YOLO results with ground-truth stls
+python visualize_yolo_stl.py \
+  --model ./weights/best.pt \
+  --specimen 2 \
+  --rgb_dir ./data/fold_2/test/images \
+  --depth_root ./data/fold_2/test/depth  \
+  --stl_root ./data/fold_2/test/stls \
+  --calib_dir ./data/fold_2/calib/SN10027879.conf
+  
+  
+# evaluate YOLO results
+python evaluate_yolo.py \
+  --model ./weights/best.pt \
+  --data dataset.yaml
+
+
 
 # Train PointNet++ for segmentation
-python train_pointnetpp.py
+python train_segmentation.py \
+  --dataset ./data/PointNet_data \
+  --outf ./checkpoints/ \
+  --fold 2 \
+  --batchSize 32 \
+  --nepoch 25 \
+  --channels 3 \
+  --feature_transform
+
+
+# Run inference Example of PointNet++ for segmentation
+python evaluate_segmentation.py \
+  --dataset_root ./data/PointNet_data \
+  --stl_root ./data/stls \
+  --checkpoints_dir ./checkpoints \
+  --output_dir ./results \
+  --channels 3 \
+  --folds 2 
+
 
 # Train SurgPointTransformer
 python train_transformer.py
@@ -95,16 +138,7 @@ python inference.py --input path/to/rgbd
 └── README.md
 ```
 
-## 🧑‍🔬 Authors
 
-* Aidana Massalimova
-* Florentin Liebmann
-* Sascha Jecklin
-* Fabio Carrillo
-* Mazda Farshad
-* Philipp Fürnstahl
-
-**Institution**: University Hospital Balgrist, University of Zurich
 
 ## 📜 Citation
 

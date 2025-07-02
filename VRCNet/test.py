@@ -1,32 +1,74 @@
+from PoinTr.tools.utils.model_utils import calc_cd
+from PointNet.dataloader import SpineDepthDataset
+from PointNet.model import PointNetDenseCls
 import logging
-import os
-import sys
 import importlib
 import argparse
 import munch
-import torch
 import yaml
 from utils.vis_utils import plot_single_pcd
 from utils.train_utils import *
 from spinedepth_dataset import ShapeNetDataset
-import open3d as o3d
-from dataloader import SpineDepthDataset
-from model import PointNetDenseCls
 from torch.autograd import Variable
 import numpy as np
 import pandas as pd
 import sys
 import os
-# Get the path to the outside directory
-outside_dir_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../tools'))
-# Add the directory to sys.path
-sys.path.insert(0, outside_dir_path)
-from utils.model_utils import calc_cd, calc_emd
 import pyvista as pv
 from scipy.spatial import KDTree
-
 import re
 from sklearn.neighbors import NearestNeighbors
+import open3d as o3d
+
+import open3d as o3d
+import numpy as np
+import pyvista as pv
+
+def poisson_reconstruction_visualization(stl, pred):
+    # Convert STL mesh to point cloud
+    pcd_complete = o3d.geometry.PointCloud()
+    pcd_complete.points = o3d.utility.Vector3dVector(np.array(stl.vertices))
+    normals = stl.vertex_normals
+
+    # Use KDTree to assign normals from the ground truth STL to the predicted point cloud
+    gt_kdtree = o3d.geometry.KDTreeFlann(pcd_complete)
+    assigned_normals = []
+    for point in pred.points:
+        [_, idx, _] = gt_kdtree.search_knn_vector_3d(point, 1)
+        closest_normal = normals[idx[0]]
+        assigned_normals.append(closest_normal)
+
+    # Set the assigned normals to the predicted point cloud
+    pred.normals = o3d.utility.Vector3dVector(np.array(assigned_normals))
+
+    # Run Poisson surface reconstruction
+    print("Running Poisson surface reconstruction...")
+    mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pred, depth=9)
+    mesh.paint_uniform_color((0, 0, 1))  # Blue color for the reconstructed mesh
+    mesh.compute_vertex_normals()
+
+    # Save the predicted mesh and the ground truth STL
+    o3d.io.write_triangle_mesh("mesh.stl", mesh)
+    o3d.io.write_triangle_mesh("gt.stl", stl)
+
+    # Load the meshes using PyVista for advanced visualization
+    mesh_pv = pv.read("mesh.stl")
+    gt_pv = pv.read("gt.stl")
+
+    # Set up the PyVista plotter
+    p = pv.Plotter()
+
+    # Add predicted mesh with specular lighting and shading
+    p.add_mesh(mesh_pv, color='orange', opacity=0.5, specular=1.0, specular_power=10, smooth_shading=True)
+
+    # Add ground truth mesh with contrasting color and similar lighting
+    p.add_mesh(gt_pv, color='teal', opacity=0.5,specular=1.0, specular_power=10, smooth_shading=True)
+
+    # Adjust the camera to a 3D oblique view
+    p.camera_position = 'iso'  # This sets an oblique view
+
+    # Show the plot with proper lighting and shading
+    p.show()
 
 
 # Function to estimate noise variance from the point cloud
@@ -52,10 +94,22 @@ def estimate_signal_variance(clean_cloud):
     return signal_variance
 
 
-# Function to calculate SNR in dB
-def calculate_snr(signal_variance, noise_variance):
-    snr = 10 * np.log10(signal_variance / noise_variance)
+def calculate_snr(gt_cloud, pred_cloud):
+    # Convert Open3D point clouds to numpy arrays
+    clean_points = np.asarray(gt_cloud.points)
+    noisy_points = np.asarray(pred_cloud.points)
+
+    # Compute signal power (mean squared distance of clean points from the origin)
+    signal_power = np.mean(np.linalg.norm(clean_points, axis=1) ** 2)
+
+    # Compute noise power (mean squared error between noisy and clean points)
+    noise_power = np.mean(np.linalg.norm(clean_points - noisy_points, axis=1) ** 2)
+
+    # Compute SNR in dB
+    snr = 10 * np.log10(signal_power / noise_power)
     return snr
+
+
 
 
 def halve_point_clouds(input, pred, gt, split_normal):
@@ -275,7 +329,25 @@ def compute_metrics(predictions, ground_truth, num_classes):
 
     return metrics
 
+def denoise_point_cloud(point_cloud):
+    min_distance = 2
 
+    pcd_tree = o3d.geometry.KDTreeFlann(point_cloud)
+
+    # Create a list to store the indices of points to keep
+    indices_to_keep = []
+
+    # Loop through each point and only keep those that are sufficiently far from their neighbors
+    for i in range(len(point_cloud.points)):
+        [_, idx, _] = pcd_tree.search_radius_vector_3d(point_cloud.points[i], min_distance)
+
+        # Only keep the point if no other point within the radius has been processed yet
+        if len(idx) <= 1:  # means it's not clustered with already considered points
+            indices_to_keep.append(i)
+
+    # Select points to keep for a more uniform distribution
+    cleaned_point_cloud = point_cloud.select_by_index(indices_to_keep)
+    return cleaned_point_cloud
 
 def calculate_iou(gt: o3d.geometry.PointCloud, pr: o3d.geometry.PointCloud):
     point_cloud1 = np.asarray(gt.points)
@@ -293,93 +365,12 @@ def calculate_iou(gt: o3d.geometry.PointCloud, pr: o3d.geometry.PointCloud):
 
     return iou
 
-def test():
-    dataset_test = ShapeNetDataset(train=False, fold= arg.fold,npoints=args.num_points)
-    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=int(args.workers))
-    dataset_length = len(dataset_test)
-    logging.info('Length of test dataset:%d', len(dataset_test))
-
-    # load model
-    model_module = importlib.import_module('.%s' % args.model_name, 'models')
-    net = torch.nn.DataParallel(model_module.Model(args))
-    net.cuda()
-    net.module.load_state_dict(torch.load(args.load_model)['net_state_dict'])
-    logging.info("%s's previous weights loaded." % args.model_name)
-    net.eval()
-
-    metrics = ['cd_p', 'cd_t', 'emd', 'f1']
-    test_loss_meters = {m: AverageValueMeter() for m in metrics}
-    test_loss_cat = torch.zeros([16, 4], dtype=torch.float32).cuda()
-    cat_num = torch.ones([8, 1], dtype=torch.float32).cuda() * 150 * 26
-    novel_cat_num = torch.ones([8, 1], dtype=torch.float32).cuda() * 50 * 26
-    cat_num = torch.cat((cat_num, novel_cat_num), dim=0)
-    cat_name = ['airplane', 'cabinet', 'car', 'chair', 'lamp', 'sofa', 'table', 'watercraft', 
-                'bed', 'bench', 'bookshelf', 'bus', 'guitar', 'motorbike', 'pistol', 'skateboard']
-    idx_to_plot = [i for i in range(0, 1600, 75)]
-
-    logging.info('Testing...')
-    if args.save_vis:
-        save_gt_path = os.path.join(log_dir, 'pics', 'gt')
-        save_partial_path = os.path.join(log_dir, 'pics', 'partial')
-        save_completion_path = os.path.join(log_dir, 'pics', 'completion')
-        os.makedirs(save_gt_path, exist_ok=True)
-        os.makedirs(save_partial_path, exist_ok=True)
-        os.makedirs(save_completion_path, exist_ok=True)
-    with torch.no_grad():
-        for i, data in enumerate(dataloader_test):
-            
-            inputs_cpu, gt_cpu = data
-            # mean_feature = None
-
-            inputs = inputs_cpu.float().cuda()
-            gt = gt_cpu.float().cuda()
-            inputs = inputs.transpose(2, 1).contiguous()
-            # result_dict = net(inputs, gt, is_training=False, mean_feature=mean_feature)
-            result_dict = net(inputs, gt, is_training=False)
-            pred = o3d.geometry.PointCloud()
-            pred.points = o3d.utility.Vector3dVector(result_dict['out2'][0].cpu().numpy()*1000)
-            gt = o3d.geometry.PointCloud()
-            gt.points = o3d.utility.Vector3dVector(gt_cpu[0].cpu().numpy()*1000)
-            o3d.visualization.draw_geometries([pred])
-            for k, v in test_loss_meters.items():
-                v.update(result_dict[k].mean().item())
-
-            for j, l in enumerate(range(inputs.size()[0])):
-                for ind, m in enumerate(metrics):
-                    test_loss_cat[int(l), ind] += result_dict[m][int(j)]
-
-            if i % args.step_interval_to_print == 0:
-                logging.info('test [%d/%d]' % (i, dataset_length / args.batch_size))
-
-            if args.save_vis:
-                for j in range(args.batch_size):
-                    idx = i * args.batch_size + j
-                    if idx in idx_to_plot:
-                        pic = 'object_%d.png' % idx
-                        plot_single_pcd(result_dict['out2'][j].cpu().numpy(), os.path.join(save_completion_path, pic))
-                        plot_single_pcd(gt_cpu[j], os.path.join(save_gt_path, pic))
-                        plot_single_pcd(inputs_cpu[j].cpu().numpy(), os.path.join(save_partial_path, pic))
-
-        logging.info('Loss per category:')
-        category_log = ''
-        for i in range(16):
-            category_log += '\ncategory name: %s' % (cat_name[i])
-            for ind, m in enumerate(metrics):
-                scale_factor = 1 if m == 'f1' else 10000
-                category_log += ' %s: %f' % (m, test_loss_cat[i, ind] / cat_num[i] * scale_factor)
-        logging.info(category_log)
-
-        logging.info('Overview results:')
-        overview_log = ''
-        for metric, meter in test_loss_meters.items():
-            overview_log += '%s: %f ' % (metric, meter.avg)
-        logging.info(overview_log)
 
 
 def point_test():
     fold = arg.fold
 
-    model = "/home/aidana/PycharmProjects/RGBDSeg/checkpoints/fold_{}/ckpt-best.pth".format(fold)
+    model = "/home/aidana/PycharmProjects/SurgPointTransformer/PointNet/checkpoints/fold_{}/ckpt-best.pth".format(fold)
     dataset = "/home/aidana/Documents/PointNet_data"
     # load model
     model_module = importlib.import_module('.%s' % args.model_name, 'models')
@@ -393,17 +384,18 @@ def point_test():
 
     logging.info('Testing...')
 
-    iou_list = []
     cd_list = []
     f1score_list = []
     emd_list = []
     levels = []
+    iou_input_list = []
 
     iou_seg_list = []
-    dice_seg_list = []
     accuracy_seg_list = []
     cd_top_list = []
     cd_bottom_list = []
+
+    snr_list = []
 
     val_dataset = SpineDepthDataset(
         root=dataset,
@@ -414,186 +406,195 @@ def point_test():
         data_augmentation=False)
 
     stls_dir = "/home/aidana/Documents/stls_transformed"
-    targets = []
 
-    translation = np.zeros(3)
     for idx in range(len(val_dataset)):
         print("Processing ", idx, "th point cloud from", len(val_dataset), "point clouds.")
         torch.cuda.empty_cache()
         data, gt, filepath, dist, trans = val_dataset[idx]
-        print(filepath)
         point = data[:, :3]
         filename = filepath.split("/")[-1][:-4]
         _, specimen, _, recording, _, cam, _, frame = filename.split("_")
-        print(filename)
-        point_np = point.numpy()
-        L1_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                                        "recording_" + str(recording),
-                                                        "cam_" + str(cam), "frame_" + str(frame),
-                                                        "transformed_vertebra1.stl"))
+        if recording == '39' and cam == '0' and frame == '1':
+            import open3d as o3d
 
-        L2_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                                        "recording_" + str(recording),
-                                                        "cam_" + str(cam), "frame_" + str(frame),
-                                                        "transformed_vertebra2.stl"))
+            print(filename)
+            point_np = point.numpy()
+            import  open3d as o3d
+            import  numpy as np
+            L1_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                                            "recording_" + str(recording),
+                                                            "cam_" + str(cam), "frame_" + str(frame),
+                                                            "transformed_vertebra1.stl"))
 
-        L3_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                                        "recording_" + str(recording),
-                                                        "cam_" + str(cam), "frame_" + str(frame),
-                                                        "transformed_vertebra3.stl"))
+            L2_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                                            "recording_" + str(recording),
+                                                            "cam_" + str(cam), "frame_" + str(frame),
+                                                            "transformed_vertebra2.stl"))
 
-        L4_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                                        "recording_" + str(recording),
-                                                        "cam_" + str(cam), "frame_" + str(frame),
-                                                        "transformed_vertebra4.stl"))
-        L5_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
-                                                        "recording_" + str(recording),
-                                                        "cam_" + str(cam), "frame_" + str(frame),
-                                                        "transformed_vertebra5.stl"))
+            L3_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                                            "recording_" + str(recording),
+                                                            "cam_" + str(cam), "frame_" + str(frame),
+                                                            "transformed_vertebra3.stl"))
 
-
-
-        L1_stl.compute_vertex_normals()
-        L2_stl.compute_vertex_normals()
-        L3_stl.compute_vertex_normals()
-        L4_stl.compute_vertex_normals()
-        L5_stl.compute_vertex_normals()
-        state_dict = torch.load(model, map_location=torch.device('cpu'))
-        classifier = PointNetDenseCls(k=6, number_channels=6)
-        classifier.load_state_dict(state_dict)
-        classifier.eval()
-
-        data = data.transpose(1, 0)
-        data = Variable(data.view(1, data.size()[0], data.size()[1]))
-        pred, _, _ = classifier(data)
-        pred_choice = pred.data.max(2)[1].cpu().numpy()
-
-        metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
-
-        L1_ind = np.where(pred_choice[0] == 1)[0]
-        L2_ind = np.where(pred_choice[0] == 2)[0]
-        L3_ind = np.where(pred_choice[0] == 3)[0]
-        L4_ind = np.where(pred_choice[0] == 4)[0]
-        L5_ind = np.where(pred_choice[0] == 5)[0]
-        background = np.where(pred_choice[0] == 0)[0]
-
-        point_np = point_np * dist + trans
-
-        L1_points = point_np[L1_ind]
-        L2_points = point_np[L2_ind]
-        L3_points = point_np[L3_ind]
-        L4_points = point_np[L4_ind]
-        L5_points = point_np[L5_ind]
-        background_points = point_np[background]
-
-        L1_pcd = o3d.geometry.PointCloud()
-        L1_pcd.points = o3d.utility.Vector3dVector(L1_points)
-
-        L2_pcd = o3d.geometry.PointCloud()
-        L2_pcd.points = o3d.utility.Vector3dVector(L2_points)
-
-        L3_pcd = o3d.geometry.PointCloud()
-        L3_pcd.points = o3d.utility.Vector3dVector(L3_points)
-
-        L4_pcd = o3d.geometry.PointCloud()
-        L4_pcd.points = o3d.utility.Vector3dVector(L4_points)
-
-        L5_pcd = o3d.geometry.PointCloud()
-        L5_pcd.points = o3d.utility.Vector3dVector(L5_points)
-
-        background_pcd = o3d.geometry.PointCloud()
-        background_pcd.points = o3d.utility.Vector3dVector(background_points)
-
-        L1_pcd.paint_uniform_color([1, 0, 0])
-        L2_pcd.paint_uniform_color([0, 1, 0])
-        L3_pcd.paint_uniform_color([0, 0, 1])
-        L4_pcd.paint_uniform_color([1, 1, 0])
-        L5_pcd.paint_uniform_color([1, 0, 1])
-        background_pcd.paint_uniform_color([0, 0, 0])
-
-
-        segs = [L1_points, L2_points, L3_points, L4_points, L5_points]
-
-
-        L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
-        L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
-        L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
-        L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
-        L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
+            L4_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                                            "recording_" + str(recording),
+                                                            "cam_" + str(cam), "frame_" + str(frame),
+                                                            "transformed_vertebra4.stl"))
+            L5_stl = o3d.io.read_triangle_mesh(os.path.join(stls_dir, "Specimen_" + str(specimen),
+                                                            "recording_" + str(recording),
+                                                            "cam_" + str(cam), "frame_" + str(frame),
+                                                            "transformed_vertebra5.stl"))
 
 
 
-        gts = [L1_stl_dwp, L2_stl_dwp, L3_stl_dwp, L4_stl_dwp, L5_stl_dwp]
-        input_pcds = [L1_pcd, L2_pcd, L3_pcd, L4_pcd, L5_pcd]
+            L1_stl.compute_vertex_normals()
+            L2_stl.compute_vertex_normals()
+            L3_stl.compute_vertex_normals()
+            L4_stl.compute_vertex_normals()
+            L5_stl.compute_vertex_normals()
+            state_dict = torch.load(model, map_location=torch.device('cpu'))
+            classifier = PointNetDenseCls(k=6, number_channels=6)
+            classifier.load_state_dict(state_dict)
+            classifier.eval()
 
-        with torch.no_grad():
-            for el, seg in enumerate(segs):
-                if len(seg) > 2048:
-                    choice = np.random.choice(len(seg), 2048, replace=True)
-                    seg = seg[choice]
-                    gt_points = torch.from_numpy(np.array(gts[el].points)).cuda().float()/1000
-                    gt = gts[el]
+            data = data.transpose(1, 0)
+            data = Variable(data.view(1, data.size()[0], data.size()[1]))
+            pred, _, _ = classifier(data)
+            pred_choice = pred.data.max(2)[1].cpu().numpy()
 
-                    inputs = torch.from_numpy(seg).float().unsqueeze(0).cuda()/1000
-                    inputs = inputs.transpose(2, 1).contiguous()
-                    result_dict = net(inputs,gt_points.unsqueeze(0),is_training=False)
-                    pred = o3d.geometry.PointCloud()
-                    pred.points = o3d.utility.Vector3dVector(result_dict['out2'][0].cpu().numpy() * 1000)
-                    pred.paint_uniform_color([0,0,1])
+            metrics = compute_metrics(pred_choice[0], gt.numpy(), 6)
+
+            L1_ind = np.where(gt == 1)[0]
+            L2_ind = np.where(gt == 2)[0]
+            L3_ind = np.where(gt == 3)[0]
+            L4_ind = np.where(gt == 4)[0]
+            L5_ind = np.where(gt == 5)[0]
+            background = np.where(gt == 0)[0]
+
+            point_np = point_np * dist + trans
+
+            L1_points = point_np[L1_ind]
+            L2_points = point_np[L2_ind]
+            L3_points = point_np[L3_ind]
+            L4_points = point_np[L4_ind]
+            L5_points = point_np[L5_ind]
+            background_points = point_np[background]
+
+            L1_pcd = o3d.geometry.PointCloud()
+            L1_pcd.points = o3d.utility.Vector3dVector(L1_points)
+
+            L2_pcd = o3d.geometry.PointCloud()
+            L2_pcd.points = o3d.utility.Vector3dVector(L2_points)
+
+            L3_pcd = o3d.geometry.PointCloud()
+            L3_pcd.points = o3d.utility.Vector3dVector(L3_points)
+
+            L4_pcd = o3d.geometry.PointCloud()
+            L4_pcd.points = o3d.utility.Vector3dVector(L4_points)
+
+            L5_pcd = o3d.geometry.PointCloud()
+            L5_pcd.points = o3d.utility.Vector3dVector(L5_points)
+
+            background_pcd = o3d.geometry.PointCloud()
+            background_pcd.points = o3d.utility.Vector3dVector(background_points)
+
+            L1_pcd.paint_uniform_color([1, 0, 0])
+            L2_pcd.paint_uniform_color([0, 1, 0])
+            L3_pcd.paint_uniform_color([0, 0, 1])
+            L4_pcd.paint_uniform_color([1, 1, 0])
+            L5_pcd.paint_uniform_color([1, 0, 1])
+            background_pcd.paint_uniform_color([0, 0, 0])
+
+            take_screenshot([L1_pcd, L2_pcd, L3_pcd, L4_pcd, L5_pcd, background_pcd])
+
+
+            segs = [L1_points, L2_points, L3_points, L4_points, L5_points]
+
+
+            L1_stl_dwp = L1_stl.sample_points_uniformly(4096)
+            L2_stl_dwp = L2_stl.sample_points_uniformly(4096)
+            L3_stl_dwp = L3_stl.sample_points_uniformly(4096)
+            L4_stl_dwp = L4_stl.sample_points_uniformly(4096)
+            L5_stl_dwp = L5_stl.sample_points_uniformly(4096)
 
 
 
-                    gt.paint_uniform_color([0,1,0])
-                    if el == 0:
-                        bbox_gt = gt.get_oriented_bounding_box()
+            gts = [L1_stl_dwp, L2_stl_dwp, L3_stl_dwp, L4_stl_dwp, L5_stl_dwp]
+            input_pcds = [L1_pcd, L2_pcd, L3_pcd, L4_pcd, L5_pcd]
+            stls = [L1_stl, L2_stl, L3_stl, L4_stl, L5_stl]
 
-                        obb_matrix = bbox_gt.R
-                        orientation_matrix = obb_matrix[:3, :3]
+            with torch.no_grad():
+                for el, seg in enumerate(segs):
+                    if len(seg) > 2048:
+                        choice = np.random.choice(len(seg), 2048, replace=True)
+                        seg = seg[choice]
+                        gt_points = torch.from_numpy(np.array(gts[el].points)).cuda().float()/1000
+                        gt = gts[el]
 
-                        # The principal axes are the columns of the orientation matrix
-                        axis_x = orientation_matrix[:, 0]
-                        axis_y = orientation_matrix[:, 1]
-                        axis_z = orientation_matrix[:, 2]
-                        split_normal = axis_x
+                        iou_input_list.append(calculate_iou(gt, input_pcds[el]))
+
+                        inputs = torch.from_numpy(seg).float().unsqueeze(0).cuda()/1000
+                        inputs = inputs.transpose(2, 1).contiguous()
+                        result_dict = net(inputs,gt_points.unsqueeze(0),is_training=False)
+                        pred = o3d.geometry.PointCloud()
+                        pred.points = o3d.utility.Vector3dVector(result_dict['out2'][0].cpu().numpy() * 1000)
+                        pred.paint_uniform_color([0,0,1])
+
+                        snr = calculate_snr(gt, pred)
+                        snr_list.append(snr)
+
+                        pred = denoise_point_cloud(pred)
 
 
-                    cd_top, cd_bottom= halve_point_clouds(input_pcds[el],pred, gt, split_normal)
-                    cd_top_list.append(cd_top[0])
-                    cd_bottom_list.append(cd_bottom[0])
-                    iou_list.append(calculate_iou(pred, gt))
-                    cd_list.append(result_dict["cd_p"].detach().cpu().numpy()[0])
-                    f1score_list.append(result_dict["f1"].detach().cpu().numpy()[0])
-                    emd_list.append(result_dict["emd"].detach().cpu().numpy()[0])
-                    levels.append(el + 1)
-                    iou_seg_list.append(metrics['IoU'][el + 1])
-                    dice_seg_list.append(metrics['Dice'][el + 1])
-                    accuracy_seg_list.append(metrics['Accuracy'][el + 1])
-                    print("CD: ", result_dict["cd_p"].detach().cpu().numpy()[0])
-                    print("CD top:", cd_top)
-                    print("CD bottom:", cd_bottom)
+                        gt.paint_uniform_color([0,1,0])
+                        if el == 0:
+                            bbox_gt = gt.get_oriented_bounding_box()
 
-    data = {
+                            obb_matrix = bbox_gt.R
+                            orientation_matrix = obb_matrix[:3, :3]
 
-        'IoU_seg': iou_seg_list,
-        'Dice': dice_seg_list,
-        'Accuracy': accuracy_seg_list,
-        'IoU': iou_list,
-        'CD': cd_list,
-        'F1': f1score_list,
-        'EMD': emd_list,
-        'Level': levels,
-        'CD_top': cd_top_list,
-        'CD_bottom': cd_bottom_list,
+                            # The principal axes are the columns of the orientation matrix
+                            axis_x = orientation_matrix[:, 0]
+                            axis_y = orientation_matrix[:, 1]
+                            axis_z = orientation_matrix[:, 2]
+                            split_normal = axis_x
 
-    }
+                      #  poisson_reconstruction_visualization(stls[el], pred)
+                        cd_top, cd_bottom= halve_point_clouds(input_pcds[el],pred, gt, split_normal)
+                        cd = calc_cd(torch.from_numpy(np.array(gt.points)).unsqueeze(0).float().cuda(),
+                                torch.from_numpy(np.array(pred.points)).unsqueeze(0).float().cuda())
+                        cd = cd[0].detach().cpu().numpy()
+                        cd_top_list.append(cd_top[0])
+                        cd_bottom_list.append(cd_bottom[0])
+                        cd_list.append(cd[0])
+                        f1score_list.append(result_dict["f1"].detach().cpu().numpy()[0])
+                        emd_list.append(result_dict["emd"].detach().cpu().numpy()[0])
+                        levels.append(el + 1)
+                        iou_seg_list.append(metrics['IoU'][el + 1])
+                        accuracy_seg_list.append(metrics['Accuracy'][el + 1])
 
-    # Create a DataFrame from the dictionary
-    df = pd.DataFrame(data)
 
-    # Save the DataFrame to a CSV file
-    df.to_csv('vrcnet_fold{}_test.csv'.format(fold), index=False)
+        data = {
+            'IoU_input': iou_input_list,
+            'IoU_seg': iou_seg_list,
+            'Accuracy': accuracy_seg_list,
+            'CD': cd_list,
+            'F1': f1score_list,
+            'EMD': emd_list,
+            'Level': levels,
+            'CD_top': cd_top_list,
+            'CD_bottom': cd_bottom_list,
+            'SNR': snr_list,
 
-    print("DataFrame saved ")
+        }
+
+        # Create a DataFrame from the dictionary
+        df = pd.DataFrame(data)
+
+        # Save the DataFrame to a CSV file
+        df.to_csv('filtered_vrcnet_fold{}_test.csv'.format(fold), index=False)
+
+        print("DataFrame saved ")
 
 
 if __name__ == "__main__":
