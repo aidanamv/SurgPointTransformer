@@ -1,5 +1,0 @@
-# ninja log v5
-0	31100	1721206590916814634	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/chamfer_dist/build/temp.linux-x86_64-3.8/chamfer_cuda.o	8abdf62f18749114
-0	49974	1721206609792815057	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/chamfer_dist/build/temp.linux-x86_64-3.8/chamfer.o	2b958656ee5b02b4
-25	29290	1721224905189517788	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/chamfer_dist/build/temp.linux-x86_64-3.8/chamfer_cuda.o	8abdf62f18749114
-25	58223	1721224934117518978	/home/aidana/PycharmProjects/RGBDSeg/PoinTr/extensions/chamfer_dist/build/temp.linux-x86_64-3.8/chamfer.o	2b958656ee5b02b4
