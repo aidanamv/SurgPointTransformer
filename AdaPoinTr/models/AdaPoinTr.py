@@ -888,7 +888,7 @@ class PCTransformer(nn.Module):
 
             return q, coarse, 0
 
-######################################## PoinTr ########################################  
+######################################## AdaPoinTr ########################################
 
 @MODELS.register_module()
 class AdaPoinTr(nn.Module):

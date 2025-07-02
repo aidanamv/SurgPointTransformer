@@ -2,7 +2,9 @@
 ./idea
 ./results
 ./PointNet/checkpoints
-./PoinTr/experiments
-./PoinTr/data
+AdaPoinTr/experiments
+AdaPoinTr/PoinTr_cfgs
+AdaPoinTr/PoinTr_data
+AdaPoinTr/extensions
 ./VRCNet/checkpoints
 

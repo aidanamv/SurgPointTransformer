@@ -166,7 +166,7 @@ python VRCNet/train_vrcnet.py \
 ### 🟢 **Train SurgPointTransformer**
 
 ```bash
-python PoinTr/main.py \
+python AdaPoinTr/main.py \
   --config <path/to/PointTransformer_config.yaml>
 ```
 
@@ -175,7 +175,7 @@ python PoinTr/main.py \
 ### 🟢 **Test SurgPointTransformer**
 
 ```bash
-python PoinTr/main.py \
+python AdaPoinTr/main.py \
   --test \
   --config <path/to/PointTransformer_config.yaml> \
   --ckpts <path/to/ckpt-best.pth>

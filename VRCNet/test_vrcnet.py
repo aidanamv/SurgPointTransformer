@@ -1,4 +1,4 @@
-from PoinTr.tools.utils.model_utils import calc_cd
+from AdaPoinTr.tools.utils.model_utils import calc_cd
 from PointNet.dataloader import SpineDepthDataset
 from PointNet.model import PointNetDenseCls
 import logging
