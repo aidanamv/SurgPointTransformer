@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import pandas as pd
 from dataloader import SpineDepthDataset
 from model import PointNetDenseCls
-from tools import compute_metrics, filter_point_clouds
+from utils import compute_metrics, filter_point_clouds
 
 
 def evaluate_fold(fold, dataset_root, stl_root, model_path, output_dir, channels):

@@ -8,7 +8,7 @@ import munch
 import yaml
 from utils.vis_utils import plot_single_pcd
 from utils.train_utils import *
-from spinedepth_dataset import ShapeNetDataset
+from dataset import ShapeNetDataset
 from torch.autograd import Variable
 import numpy as np
 import pandas as pd
@@ -367,16 +367,12 @@ def calculate_iou(gt: o3d.geometry.PointCloud, pr: o3d.geometry.PointCloud):
 
 
 
-def point_test():
-    fold = arg.fold
-
-    model = "/home/aidana/PycharmProjects/SurgPointTransformer/PointNet/checkpoints/fold_{}/ckpt-best.pth".format(fold)
-    dataset = "/home/aidana/Documents/PointNet_data"
-    # load model
-    model_module = importlib.import_module('.%s' % args.model_name, 'models')
+def point_test(args):
+    fold = args.fold
+    dataset = args.dataset
     net = torch.nn.DataParallel(model_module.Model(args))
     net.cuda()
-    net.module.load_state_dict(torch.load(arg.model)['net_state_dict'])
+    net.module.load_state_dict(torch.load(arg.checkpoints)['net_state_dict'])
     logging.info("%s's previous weights loaded." % args.model_name)
     net.eval()
 
@@ -596,25 +592,21 @@ def point_test():
 
         print("DataFrame saved ")
 
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate point cloud shape completion + segmentation")
+    parser.add_argument("-c", "--config", required=True, help="Path to YAML config file")
+    parser.add_argument("-f", "--fold", required=True, type=int, help="Fold number to evaluate")
+    parser.add_argument("-m", "--model", required=True, help="Model filename (e.g., ckpt-best.pth)")
+    parser.add_argument("-d", "--dataset", required=True, help="Path to dataset directory (e.g., PointNet_data)")
+    parser.add_argument("--checkpoints", required=True, help="Path to checkpoints directory (base path)")
+
+    args_cli = parser.parse_args()
+
+
+
+    point_test(args_cli)
+
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Test config file')
-    parser.add_argument('-c', '--config', help='path to config file', required=True)
-    parser.add_argument('-f', '--fold',required=True)
-    parser.add_argument('-m', '--model',required=True)
-
-
-    arg = parser.parse_args()
-    config_path = arg.config
-    args = munch.munchify(yaml.safe_load(open(config_path)))
-
-
-
-    exp_name = os.path.basename(arg.model)
-
-    log_dir = os.path.dirname(arg.model)
-
-    logging.basicConfig(level=logging.INFO, handlers=[logging.FileHandler(os.path.join(log_dir, 'test.log')),
-                                                       logging.StreamHandler(sys.stdout)])
-
-    point_test()
+    main()

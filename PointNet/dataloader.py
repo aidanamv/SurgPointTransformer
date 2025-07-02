@@ -68,17 +68,16 @@ class SpineDepthDataset(data.Dataset):
         self.fold = fold
         self.root = root
         self.num_channels = num_channels
-        self.catfile = os.path.join(self.root, 'synsetoffset2category.txt')
         self.cat = {}
         self.data_augmentation = data_augmentation
         self.classification = classification
         self.seg_classes = {}
 
-        with open(self.catfile, 'r') as f:
-            for line in f:
-                ls = line.strip().split()
-                self.cat[ls[0]] = ls[1]
-        # print(self.cat)
+        # Hardcoded number of segmentation classes for known categories
+        self.seg_classes = {
+            'spine': 6  # spine has 6 segmentation classes: background + L1-L5
+        }
+        self.num_seg_classes = self.seg_classes.get(list(self.cat.keys())[0], 6)
         if not class_choice is None:
             self.cat = {k: v for k, v in self.cat.items() if k in class_choice}
 

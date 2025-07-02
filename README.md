@@ -71,71 +71,156 @@ pip install -r requirements.txt
 
 ## 🚀 Training & Inference
 
+### 🟢 **Train YOLOv8 / v10 for Localization**
+
 ```bash
-# Train YOLOv8 for localization
-python train_yolo.py \
-  --model yolov10n.yaml \
-  --data dataset.yaml \
-  --epochs 50 \
-  --imgsz 640 \
-  --batch 16 \
-  --device 0 \
-  --name spine_detection_v10n
-
-
-# visualize YOLO results with ground-truth stls
-python visualize_yolo_stl.py \
-  --model ./weights/best.pt \
-  --specimen 2 \
-  --rgb_dir ./data/fold_2/test/images \
-  --depth_root ./data/fold_2/test/depth  \
-  --stl_root ./data/fold_2/test/stls \
-  --calib_dir ./data/fold_2/calib/SN10027879.conf
-  
-  
-# evaluate YOLO results
-python evaluate_yolo.py \
-  --model ./weights/best.pt \
-  --data dataset.yaml
-
-
-
-# Train PointNet++ for segmentation
-python train_segmentation.py \
-  --dataset ./data/PointNet_data \
-  --outf ./checkpoints/ \
-  --fold 2 \
-  --batchSize 32 \
-  --nepoch 25 \
-  --channels 3 \
-  --feature_transform
-
-
-# Run inference Example of PointNet++ for segmentation
-python evaluate_segmentation.py \
-  --dataset_root ./data/PointNet_data \
-  --stl_root ./data/stls \
-  --checkpoints_dir ./checkpoints \
-  --output_dir ./results \
-  --channels 3 \
-  --folds 2 
-
-
-# Train SurgPointTransformer
-python train_transformer.py
-
-# Run inference
-python inference.py --input path/to/rgbd
+python YOLO/train_yolo.py \
+  --model <path/to/yolo_model.yaml> \
+  --data <path/to/dataset.yaml> \
+  --epochs <num_epochs> \
+  --imgsz <image_size> \
+  --batch <batch_size> \
+  --device <cuda_device_id> \
+  --name <run_name>
 ```
+
+---
+
+### 🟢 **Visualize YOLO Results with STL Meshes**
+
+```bash
+python YOLO/visualize_yolo_stl.py \
+  --model <path/to/best.pt> \
+  --specimen <specimen_id> \
+  --rgb_dir <path/to/rgb/images> \
+  --depth_root <path/to/depth/maps> \
+  --stl_root <path/to/stl/meshes> \
+  --calib_dir <path/to/camera_calib.conf>
+```
+
+---
+
+### 🟢 **Evaluate YOLO Predictions**
+
+```bash
+python YOLO/evaluate_yolo.py \
+  --model <path/to/best.pt> \
+  --data <path/to/dataset.yaml>
+```
+
+---
+
+### 🟢 **Train PointNet++ for Segmentation**
+
+```bash
+python PointNet/train_segmentation.py \
+  --dataset <path/to/PointNet_data> \
+  --outf <output_dir_for_checkpoints> \
+  --fold <fold_number> \
+  --batchSize <batch_size> \
+  --nepoch <num_epochs> \
+  --channels <num_input_channels> \
+  --feature_transform
+```
+
+---
+
+### 🟢 **Evaluate PointNet++ Segmentation**
+
+```bash
+python PointNet/evaluate_segmentation.py \
+  --dataset_root <path/to/PointNet_data> \
+  --stl_root <path/to/stl_root> \
+  --checkpoints_dir <path/to/checkpoints_dir> \
+  --output_dir <path/to/save_results> \
+  --channels <num_input_channels> \
+  --folds <fold_number>
+```
+
+---
+
+### 🟢 **Test VRCNet**
+
+```bash
+python VRCNet/test_vrcnet.py \
+  --config <path/to/vrcnet_config.yaml> \
+  --fold <fold_number> \
+  --model <model_file_name_or_tag> \
+  --checkpoints <path/to/ckpt-best.pth> \
+  --dataset <path/to/data_dir>
+```
+
+---
+
+### 🟢 **Train VRCNet**
+
+```bash
+python VRCNet/train_vrcnet.py \
+  --config <path/to/train_config.yaml> \
+  --dataset <path/to/data_dir> \
+  --fold <fold_number>
+```
+
+---
+
+### 🟢 **Train SurgPointTransformer**
+
+```bash
+python PoinTr/main.py \
+  --config <path/to/PointTransformer_config.yaml>
+```
+
+---
+
+### 🟢 **Test SurgPointTransformer**
+
+```bash
+python PoinTr/main.py \
+  --test \
+  --config <path/to/PointTransformer_config.yaml> \
+  --ckpts <path/to/ckpt-best.pth>
+```
+
+---
+
+
+
 
 ## 📁 Project Structure
 
 ```
-├── data/                # SpineDepth RGB-D data & GT meshes
-├── models/              # YOLOv8, PointNet++, Transformer
-├── scripts/             # Training/inference scripts
-├── utils/               # Metrics, visualizations, point cloud tools
-└── README.md
+├── YOLO/                            # YOLOv8/YOLOv10 training, inference, evaluation
+│   ├── train_yolo.py                # Train YOLO for localization
+│   ├── visualize_yolo_stl.py       # Visualize YOLO boxes + STL meshes
+│   ├── evaluate_yolo.py            # Evaluate detection results
+    ├── dataset.yaml                 #config file for training 
+│   └── weights/                    # Trained YOLO models (.pt)
+│
+├── PointNet/                        # PointNet++ segmentation
+│   ├── train_segmentation.py       # Train segmentation model
+│   ├── evaluate_segmentation.py    # Inference + metric evaluation
+│   ├── model.py                    # PointNet++ model definition
+│   ├── utils.py                    # utils for loss, metrics, model
+│   ├── dataloader.py               # Custom dataset loader
+│   └── checkpoints/                # Saved model checkpoints
+│
+├── VRCNet/                          # VRCNet shape completion baseline
+│   ├── test_vrcnet.py              # Evaluate VRCNet
+│   ├── train_vrcnet.py             # Train VRCNet
+│   ├── dataset.py                  # dataloader
+│   └── cfgs/                       # VRCNet YAML configs
+│
+├── PoinTr/                          # SurgPointTransformer
+│   ├── main.py                     # Train/test entrypoint
+│   ├── tools/                      # Utils for loss, model, metrics
+│   ├── models/                     # AdaPoinTr transformer models
+│   ├── cfgs/                       # Training YAML configurations
+│   └── experiments/                # Checkpoints and logs
+│
+├── requirements.txt
+├── README.md
+└── LICENSE
+
 ```
 
 

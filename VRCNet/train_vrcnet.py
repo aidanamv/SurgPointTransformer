@@ -11,18 +11,18 @@ import yaml
 import os
 import sys
 import argparse
-from spinedepth_dataset import ShapeNetDataset
+from dataset import ShapeNetDataset
 
 
-def train():
+def train(args):
     logging.info(str(args))
     metrics = ['cd_p', 'cd_t', 'emd', 'f1']
     best_epoch_losses = {m: (0, 0) if m == 'f1' else (0, math.inf) for m in metrics}
     train_loss_meter = AverageValueMeter()
     val_loss_meters = {m: AverageValueMeter() for m in metrics}
 
-    dataset = ShapeNetDataset(train=True, npoints=args.num_points)
-    dataset_test = ShapeNetDataset(train=False, npoints=args.num_points)
+    dataset = ShapeNetDataset(train=True,dataset= args.dataset, fold=args.fold, npoints=args.num_points)
+    dataset_test = ShapeNetDataset(train=False, dataset=args.dataset, fold=args.fold,npoints=args.num_points)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=int(args.workers))
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=int(args.workers))
     logging.info('Length of train dataset:%d', len(dataset))
@@ -36,7 +36,7 @@ def train():
     random.seed(seed)
     torch.manual_seed(seed)
 
-    model_module = importlib.import_module('.%s' % args.model_name, 'models')
+    model_module = importlib.import_module('.%s' % args.model_name, 'model')
     net = torch.nn.DataParallel(model_module.Model(args))
     net.cuda()
     if hasattr(model_module, 'weights_init'):
@@ -188,9 +188,20 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train config file')
     parser.add_argument('-c', '--config', help='path to config file', required=True)
+
+    parser.add_argument('-c', '--config', help='path to config file', required=True)
+    parser.add_argument('-d', '--dataset', help='path to dataset root', required=True)
+    parser.add_argument('-f', '--fold', type=int, help='fold number', required=True)
     arg = parser.parse_args()
+
     config_path = arg.config
     args = munch.munchify(yaml.safe_load(open(config_path)))
+
+    # Inject dataset path and fold from CLI into config object
+    args.dataset = arg.dataset
+    args.fold = arg.fold
+
+
 
     time = datetime.datetime.now().isoformat()[:19]
     if args.load_model:
@@ -203,7 +214,7 @@ if __name__ == "__main__":
             os.makedirs(log_dir)
     logging.basicConfig(level=logging.INFO, handlers=[logging.FileHandler(os.path.join(log_dir, 'train.log')),
                                                       logging.StreamHandler(sys.stdout)])
-    train()
+    train(args)
 
 
 

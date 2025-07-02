@@ -7,7 +7,7 @@ class Registry:
     """A registry to map strings to classes.
     Registered object could be built from registry.
     Example:
-        >>> MODELS = Registry('models')
+        >>> MODELS = Registry('model')
         >>> @MODELS.register_module()
         >>> class ResNet:
         >>>     pass
@@ -70,8 +70,8 @@ class Registry:
         """Infer the scope of registry.
         The name of the package where registry is defined will be returned.
         Example:
-            # in mmdet/models/backbone/resnet.py
-            >>> MODELS = Registry('models')
+            # in mmdet/model/backbone/resnet.py
+            >>> MODELS = Registry('model')
             >>> @MODELS.register_module()
             >>> class ResNet:
             >>>     pass
@@ -151,12 +151,12 @@ class Registry:
         The ``registry`` will be added as children based on its scope.
         The parent registry could build objects from children registry.
         Example:
-            >>> models = Registry('models')
-            >>> mmdet_models = Registry('models', parent=models)
+            >>> model = Registry('model')
+            >>> mmdet_models = Registry('model', parent=model)
             >>> @mmdet_models.register_module()
             >>> class ResNet:
             >>>     pass
-            >>> resnet = models.build(dict(NAME='mmdet.ResNet'))
+            >>> resnet = model.build(dict(NAME='mmdet.ResNet'))
         """
 
         assert isinstance(registry, Registry)

@@ -1,7 +1,7 @@
 from utils import registry
 
 
-MODELS = registry.Registry('models')
+MODELS = registry.Registry('model')
 
 
 def build_model_from_cfg(cfg, **kwargs):
