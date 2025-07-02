@@ -7,4 +7,9 @@ AdaPoinTr/PoinTr_cfgs
 AdaPoinTr/PoinTr_data
 AdaPoinTr/extensions
 ./VRCNet/checkpoints
+./extensions/*/build
+./extensions/*/chamfer.egg-info
+./extensions/*/dist
+
+
 
