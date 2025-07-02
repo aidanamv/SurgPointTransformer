@@ -3,5 +3,6 @@
 ./results
 ./PointNet/checkpoints
 ./PoinTr/experiments
+./PoinTr/data
 ./VRCNet/checkpoints
 

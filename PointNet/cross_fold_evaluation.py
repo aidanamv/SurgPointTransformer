@@ -62,10 +62,7 @@ for fold in range(2,11):
         _,specimen, _, recording, _, cam,_, frame = filename.split("_")
         point_np = point.numpy()
 
-        state_dict = torch.load(model,map_location=torch.device('cpu'))
-        classifier = PointNetDenseCls(k= 6, number_channels=3)
-        classifier.load_state_dict(state_dict)
-        classifier.eval()
+
 
         data = data.transpose(1, 0)
         data = Variable(data.view(1, data.size()[0], data.size()[1]))
