@@ -219,7 +219,6 @@ python PoinTr/main.py \
 │
 ├── requirements.txt
 ├── README.md
-└── LICENSE
 
 ```
 
